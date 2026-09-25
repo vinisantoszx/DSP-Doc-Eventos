@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
 class DocumentoEvento(BaseModel):
-    #metadados req 4
-    id: str
+    #req 4
+    id: int
     nome_original: str
     nome_armazenado: str
     extensao: str
@@ -13,7 +13,7 @@ class DocumentoEvento(BaseModel):
     data_upload: str
     sha256: str
 
-    #metados req 11
+    #req 11
     evento: str
     participante_ou_responsavel: str
     categoria_evento: str
