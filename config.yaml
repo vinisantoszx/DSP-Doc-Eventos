@@ -1,1 +1,19 @@
-# configyaml
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  padrao:
+    format: "%(asctime)s | %(levelname)s | %(message)s"
+
+handlers:
+  file:
+    class: logging.FileHandler
+    filename: "./storage/logs/sistema.log"
+    formatter: padrao
+    encoding: utf-8
+
+loggers:
+  CofreEventos:
+    level: INFO
+    handlers: [file]
+    propagate: False 
