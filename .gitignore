@@ -1,0 +1,6 @@
+# Ignorar arquivos de log locais
+*.log
+
+# Ignorar cache de compilação do Python
+__pycache__/
+*.pyc
