@@ -1,3 +1,4 @@
+from routes.documentos import router as documentos_router
 import logging
 import logging.config
 import yaml
@@ -20,6 +21,8 @@ app = FastAPI(
     version="1.0.0",
     description="API para armazenamento e gestão de documentos de eventos."
 )
+
+app.include_router(documentos_router)
 
 @app.on_event("startup")
 def startup():
