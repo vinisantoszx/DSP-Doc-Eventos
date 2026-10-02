@@ -1,5 +1,5 @@
 sistema:
-  armazenamentos:
+  armazenamento:
     documentos: "storage/documentos"
     metadata: "storage/metadata"
     backups: "storage/backups"
