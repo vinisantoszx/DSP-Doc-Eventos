@@ -42,3 +42,14 @@ def escrever_json(arquivo: Path, dados: list[dict[str, Any]]) -> None:
         json.dump(dados, file, ensure_ascii=False, indent=4)
     
     logger.debug(f"Arquivo {arquivo.name} atualizado com {len(dados)} registos")
+
+def buscar_por_id(arquivo: Path, registro_id: int) -> dict[str, Any] | None:
+    """
+    Busca um registro pelo ID dentro do ficheiro JSON.
+    """
+    dados = ler_json(arquivo)
+    
+    for item in dados:
+        if item["id"] == registro_id:
+            return item
+    return None

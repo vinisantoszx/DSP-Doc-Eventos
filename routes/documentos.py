@@ -1,10 +1,10 @@
 from pathlib import Path
 import yaml
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 from modelos import DocumentoEvento
-from utils import ler_json
+from utils import ler_json, buscar_por_id
 
 logger = logging.getLogger("CofreEventos")
 
@@ -30,3 +30,20 @@ def listar_documentos():
     documentos = ler_json(ARQUIVO_JSON)
     logger.info(f"Listagem de documentos {len(documentos)} registro(s) retornado(s).")
     return documentos
+
+@router.get("/{id_documento}", response_model=DocumentoEvento)
+def obter_documento(id_documento: int):
+    """
+    Busca um documento específico através do seu ID.
+    """
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+
+    if not documento:
+        logger.warning(f"Documento não encontrado: ID {id_documento}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Documento não encontrado",
+        )
+
+    logger.info(f"Documento encontrado: ID {id_documento}")
+    return documento
