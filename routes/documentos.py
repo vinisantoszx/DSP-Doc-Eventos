@@ -51,6 +51,38 @@ def listar_documentos(
     logger.info(f"Listagem filtrada: {len(resultados)} registro(s) retornado(s).")
     return resultados
 
+@router.get("/estatisticas")
+def obter_estatisticas():
+    """
+    Calcula e retorna estatísticas geraisdo Cofre.
+    """
+    documentos = ler_json(ARQUIVO_JSON)
+    total_documentos = len(documentos)
+    total_tamanho = sum(doc.get("tamanho", 0) for doc in documentos)
+
+    por_extensao = {}
+    por_categoria = {}
+    por_evento = {}
+
+    for doc in documentos:
+        ext = doc.get("extensao", "desconhecida")
+        cat = doc.get("categoria", "desconhecida")
+        evento = doc.get("evento", "desconhecido")
+
+        por_extensao[ext] = por_extensao.get(ext, 0) + 1
+        por_categoria[cat] = por_categoria.get(cat, 0) + 1
+        por_evento[evento] = por_evento.get(evento, 0) + 1
+
+    logger.info("Estatísticas do sistema consultadas.")
+
+    return {
+        "total_documentos": total_documentos,
+        "total_tamanho_bytes": total_tamanho,
+        "por_extensao": por_extensao,
+        "por_categoria": por_categoria,
+        "por_evento": por_evento
+    }
+
 @router.get("/{id_documento}", response_model=DocumentoEvento)
 def obter_documento(id_documento: int):
     """
