@@ -2,6 +2,7 @@ from pathlib import Path
 import yaml
 import logging
 from fastapi import APIRouter, HTTPException, status
+from typing import Optional
 
 from modelos import DocumentoEvento
 from utils import ler_json, buscar_por_id
@@ -23,13 +24,32 @@ router = APIRouter(
 )
 
 @router.get("", response_model=list[DocumentoEvento])
-def listar_documentos():
+def listar_documentos(
+    categoria: Optional[str] = None,
+    evento: Optional[str] = None,
+    participante: Optional[str] = None
+):
     """
-    Retorna a lista com todos os documentos de eventos cadastrados.
+    Retorna a lista de documentos, permitindo filtragem combinada.
     """
     documentos = ler_json(ARQUIVO_JSON)
-    logger.info(f"Listagem de documentos {len(documentos)} registro(s) retornado(s).")
-    return documentos
+    resultados = []
+
+    for doc in documentos: 
+        match = True
+
+        if categoria and doc.get("categoria") != categoria:
+            match = False
+        if evento and doc.get("evento") != evento:
+            match = False
+        if participante and doc.get("participante_ou_responsavel") != participante:
+            match = False
+
+        if match:
+            resultados.append(doc)
+
+    logger.info(f"Listagem filtrada: {len(resultados)} registro(s) retornado(s).")
+    return resultados
 
 @router.get("/{id_documento}", response_model=DocumentoEvento)
 def obter_documento(id_documento: int):
