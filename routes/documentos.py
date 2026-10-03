@@ -1,23 +1,16 @@
-from pathlib import Path
-import yaml
 import logging
 from fastapi import APIRouter, HTTPException, status
 from typing import Optional
-
+ 
+from config import config, BASE_DIR
 from modelos import DocumentoEvento
 from utils import ler_json, buscar_por_id
-
+ 
 logger = logging.getLogger("CofreEventos")
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-ARQUIVO_CONFIG = BASE_DIR / "config.yaml"
-
-with open(ARQUIVO_CONFIG, "r", encoding="utf-8") as file:
-    config = yaml.safe_load(file)
-
+ 
 pasta_metadata = config["sistema"]["armazenamento"]["metadata"]
 ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
-
+ 
 router = APIRouter(
     prefix="/documentos",
     tags=["documentos"],
