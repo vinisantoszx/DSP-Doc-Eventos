@@ -43,3 +43,34 @@ def listar_documentos(
     """
     documentos = ler_json(ARQUIVO_JSON)
     resultados = []
+
+for doc in documentos:
+    match = True
+
+    if categoria and not comparar_texto(doc.get("categoria"), categoria):
+        match = False
+    if extensao and normalizar_extensao(doc.get("extensao")) != normalizar_extensao(extensao):
+        match = False
+    if evento and not comparar_texto(doc.get("evento"), evento):
+        match = False
+    if participante and not comparar_texto(doc.get("participante_ou_responsavel"), participante):
+        match = False
+    if local and not comparar_texto(doc.get("local"), local):
+        match = False
+    if categoria_evento and not comparar_texto(doc.get("categoria_evento"), categoria_evento):
+        match = False
+    if data_evento and not str(doc.get("data_evento", "")).startswith(data_evento):
+        match = False
+
+    if match:
+        resultados.append(doc)
+
+    filtros = {
+        "categoria": categoria,
+        "extensao": extensao,
+        "evento": evento,
+        "participante": participante,
+        "local": local,
+        "categoria_evento": categoria_evento,
+        "data_evento": data_evento,
+    }
