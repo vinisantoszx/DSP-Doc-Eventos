@@ -1,3 +1,15 @@
+sistema:
+  armazenamento:
+    documentos: "storage/documentos"
+    metadata: "storage/metadata"
+    backups: "storage/backups"
+  upload:
+    tamanho_maximo_mb: 50
+  seguranca:
+    algoritmo_hash: "SHA-256"
+  backup:
+    formato: "zip"
+
 version: 1
 disable_existing_loggers: False
 
