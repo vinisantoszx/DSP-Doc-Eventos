@@ -20,22 +20,30 @@ def verificar_banco_json(caminho: Path):
             json.dump([], arquivo, ensure_ascii=False, indent=4)
         logger.info(f"Arquivo criado: {caminho.name}")
 
-def ler_json() -> list[dict[str, Any]]:
+def ler_json(caminho: Path = ARQUIVO_JSON) -> list[dict[str, Any]]:
     # Lê os dados do arquivo e converte para uma lista do Python
-    verificar_banco_json(ARQUIVO_JSON)
+    verificar_banco_json(caminho)
     
     try:
-        with open(ARQUIVO_JSON, "r", encoding="utf-8") as arquivo:
+        with open(caminho, "r", encoding="utf-8") as arquivo:
             return json.load(arquivo)
     except json.JSONDecodeError as erro:
-        logger.error(f"Erro ao ler o arquivo {ARQUIVO_JSON.name}: {erro}")
-        raise ValueError(f"O banco de dados {ARQUIVO_JSON.name} está corrompido.") from erro
+        logger.error(f"Erro ao ler o arquivo {caminho.name}: {erro}")
+        raise ValueError(f"O banco de dados {caminho.name} está corrompido.") from erro
 
-def salvar_json(lista_documentos: list[dict[str, Any]]):
+def salvar_json(caminho: Path, lista_documentos: list[dict[str, Any]]):
     # Sobrescreve o arquivo JSON atual com a lista atualizada
-    verificar_banco_json(ARQUIVO_JSON)
+    verificar_banco_json(caminho)
     
-    with open(ARQUIVO_JSON, "w", encoding="utf-8") as arquivo:
+    with open(caminho, "w", encoding="utf-8") as arquivo:
         json.dump(lista_documentos, arquivo, ensure_ascii=False, indent=4)
         
     logger.debug(f"Salvo com sucesso. Total de registros: {len(lista_documentos)}")
+
+def buscar_por_id(caminho: Path, registro_id: int) -> dict[str, Any] | None:
+    # Função para a rota de Seba funcionar
+    dados = ler_json(caminho)
+    for item in dados:
+        if item.get("id") == registro_id:
+            return item
+    return None

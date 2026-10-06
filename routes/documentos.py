@@ -1,20 +1,87 @@
 import logging
-from fastapi import APIRouter, HTTPException, status
+import shutil
+from pathlib import Path
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from typing import Optional
 
+# Importações do Sebastian integradas com as minhas
 from config import config, BASE_DIR
 from modelos import DocumentoEvento
-from utils import ler_json, buscar_por_id
+from utils import ler_json, buscar_por_id, salvar_json
 
 logger = logging.getLogger("CofreEventos")
 
+# Configurações de pastas (misturando a base do Sebastian com a minha necessidade de arquivos físicos)
 pasta_metadata = config["sistema"]["armazenamento"]["metadata"]
 ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
+
+PASTA_ARQUIVOS = BASE_DIR / "storage" / "arquivos"
+PASTA_ARQUIVOS.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(
     prefix="/documentos",
     tags=["documentos"],
 )
+
+# ==============================================================================
+# ROTA DO ARQUIVISTA - Upload de Documentos
+# ==============================================================================
+@router.post("/upload/", status_code=status.HTTP_201_CREATED)
+async def upload_documento(
+    arquivo: UploadFile = File(...),
+    evento: str = Form(...),
+    participante: str = Form(...),
+    local: str = Form(...),
+    categoria: str = Form(...),
+    categoria_evento: str = Form(...),
+    data_evento: str = Form(...)
+):
+    """
+    Recebe o arquivo físico e registra os metadados no sistema.
+    """
+    caminho_arquivo = PASTA_ARQUIVOS / arquivo.filename
+    try:
+        with open(caminho_arquivo, "wb") as buffer:
+            shutil.copyfileobj(arquivo.file, buffer)
+    except Exception as erro:
+        logger.error(f"Erro ao salvar arquivo físico {arquivo.filename}: {erro}")
+        raise HTTPException(status_code=500, detail="Falha ao salvar o arquivo no servidor.")
+
+    tamanho_bytes = caminho_arquivo.stat().st_size
+
+    # Monta o modelo compatível com os filtros do Sebastian
+    novo_documento = DocumentoEvento(
+        nome_arquivo=arquivo.filename,
+        extensao=caminho_arquivo.suffix,
+        tamanho=tamanho_bytes,
+        evento=evento,
+        participante_ou_responsavel=participante,
+        local=local,
+        categoria=categoria,
+        categoria_evento=categoria_evento,
+        data_evento=data_evento
+    )
+
+    try:
+        dados = ler_json(ARQUIVO_JSON)
+        novo_id = 1 if len(dados) == 0 else dados[-1]["id"] + 1
+        novo_documento.id = novo_id
+        
+        dados.append(novo_documento.model_dump())
+        salvar_json(ARQUIVO_JSON, dados)
+        
+        logger.info(f"UPLOAD concluído: {arquivo.filename} (Evento: {evento})")
+        return {"mensagem": "Arquivo arquivado com sucesso", "documento": novo_documento}
+        
+    except Exception as erro:
+        logger.error(f"Erro ao registrar metadados: {erro}")
+        if caminho_arquivo.exists():
+            caminho_arquivo.unlink()
+        raise HTTPException(status_code=500, detail="Erro ao registrar no banco de dados.")
+
+# ==============================================================================
+# ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
+# ==============================================================================
 
 def comparar_texto(valor_doc, filtro: str) -> bool:
     """
