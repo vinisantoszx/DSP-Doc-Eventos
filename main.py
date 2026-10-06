@@ -1,4 +1,4 @@
-from routes.documentos import router as documentos_router
+from routers.documentos import router as documentos_router
 import logging
 import logging.config
 from contextlib import asynccontextmanager

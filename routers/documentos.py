@@ -1,4 +1,5 @@
 import logging
+import hashlib
 import shutil
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
@@ -47,6 +48,15 @@ async def upload_documento(
         logger.error(f"Erro ao salvar arquivo físico {arquivo.filename}: {erro}")
         raise HTTPException(status_code=500, detail="Falha ao salvar o arquivo no servidor.")
 
+    # --- INÍCIO DA ADIÇÃO DO HASH ---
+    # Calcula o Hash SHA-256 lendo o arquivo em pequenos blocos
+    sha256_hash = hashlib.sha256()
+    with open(caminho_arquivo, "rb") as arquivo_binario:
+        for chunk in iter(lambda: arquivo_binario.read(4096), b""):
+            sha256_hash.update(chunk)
+    hash_calculado = sha256_hash.hexdigest()
+    # --- FIM DA ADIÇÃO ---
+
     tamanho_bytes = caminho_arquivo.stat().st_size
 
     # Monta o modelo compatível com os filtros do Sebastian
@@ -54,6 +64,7 @@ async def upload_documento(
         nome_arquivo=arquivo.filename,
         extensao=caminho_arquivo.suffix,
         tamanho=tamanho_bytes,
+        hash_sha256=hash_calculado,
         evento=evento,
         participante_ou_responsavel=participante,
         local=local,
