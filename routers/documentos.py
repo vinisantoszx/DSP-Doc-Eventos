@@ -1,6 +1,7 @@
 import logging
 import hashlib
 import shutil
+from fastapi.responses import FileResponse
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from typing import Optional
@@ -89,6 +90,41 @@ async def upload_documento(
         if caminho_arquivo.exists():
             caminho_arquivo.unlink()
         raise HTTPException(status_code=500, detail="Erro ao registrar no banco de dados.")
+
+@router.get("/{id_documento}/download", summary="Download do Arquivo")
+def baixar_documento(id_documento: int):
+    """
+    Recupera o arquivo original armazenado pelo sistema.
+    Trabalha com arquivos binários para evitar alterações no conteúdo.
+    """
+    # 1. Pede ao utils.py para achar os dados do arquivo pelo ID
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+    
+    if not documento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado no banco de dados."
+        )
+
+    # 2. Monta o caminho de onde o arquivo físico deveria estar
+    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_arquivo"]
+    
+    # 3. Verifica se o arquivo físico realmente existe na pasta
+    if not caminho_arquivo.exists():
+        logger.error(f"Arquivo físico perdido: {caminho_arquivo}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="O arquivo físico não foi localizado no servidor."
+        )
+    
+    logger.info(f"DOWNLOAD concluído: {documento['nome_arquivo']} (ID: {id_documento})")
+    
+    # 4. Devolve o arquivo binário intacto para o usuário
+    return FileResponse(
+        path=caminho_arquivo, 
+        filename=documento["nome_arquivo"],
+        media_type="application/octet-stream" # Garante que o navegador vai forçar o download
+    )
 
 # ==============================================================================
 # ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
