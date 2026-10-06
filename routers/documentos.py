@@ -2,6 +2,7 @@ import logging
 import hashlib
 import shutil
 from fastapi.responses import FileResponse
+from modelos import DocumentoEvento, DocumentoAtualizacao
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from typing import Optional
@@ -125,6 +126,41 @@ def baixar_documento(id_documento: int):
         filename=documento["nome_arquivo"],
         media_type="application/octet-stream" # Garante que o navegador vai forçar o download
     )
+
+@router.put("/{id_documento}", summary="Atualização de metadados")
+def atualizar_documento(id_documento: int, dados_atualizacao: DocumentoAtualizacao):
+    """
+    Atualiza os metadados de um documento existente.
+    Não altera o ficheiro físico armazenado.
+    """
+    dados = ler_json(ARQUIVO_JSON)
+    documento_encontrado = False
+    
+    # Procura o documento pelo ID e atualiza apenas os campos enviados
+    for doc in dados:
+        if doc.get("id") == id_documento:
+            documento_encontrado = True
+            
+            # Converte o molde recebido para um dicionário, ignorando valores vazios (None)
+            campos_para_atualizar = dados_atualizacao.model_dump(exclude_unset=True)
+            
+            # Atualiza os dados no documento original
+            for chave, valor in campos_para_atualizar.items():
+                doc[chave] = valor
+                
+            break
+            
+    if not documento_encontrado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado."
+        )
+        
+    # Guarda as alterações de volta no ficheiro JSON
+    salvar_json(ARQUIVO_JSON, dados)
+    logger.info(f"ATUALIZAÇÃO concluída: Metadados do ID {id_documento} alterados.")
+    
+    return {"mensagem": "Metadados atualizados com sucesso", "id_documento": id_documento}
 
 # ==============================================================================
 # ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas

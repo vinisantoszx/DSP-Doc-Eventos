@@ -23,3 +23,11 @@ class DocumentoEvento(BaseModel):
     # Campos automáticos e de auditoria
     data_upload: str = Field(default_factory=obter_data_atual)
     hash_sha256: Optional[str] = Field(default=None, description="Assinatura de integridade")
+
+    class DocumentoAtualizacao(BaseModel):
+        evento: Optional[str] = Field(default=None, description="Novo nome do evento")
+        participante_ou_responsavel: Optional[str] = Field(default=None, description="Novo responsável")
+        local: Optional[str] = Field(default=None, description="Novo local")
+        categoria: Optional[str] = Field(default=None, description="Nova categoria do documento")
+        categoria_evento: Optional[str] = Field(default=None, description="Nova categoria do evento")
+        data_evento: Optional[str] = Field(default=None, description="Nova data do evento")
