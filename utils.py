@@ -6,10 +6,6 @@ import logging
 # Usa o logger que já configuramos no main.py
 logger = logging.getLogger("CofreEventos")
 
-# Caminho absoluto para evitar erros entre Windows e Linux
-BASE_DIR = Path(__file__).resolve().parent
-ARQUIVO_JSON = BASE_DIR / "storage" / "metadata" / "documentos.json"
-
 def verificar_banco_json(caminho: Path):
     # Cria as pastas storage e metadata caso não existam
     caminho.parent.mkdir(parents=True, exist_ok=True)
@@ -20,7 +16,7 @@ def verificar_banco_json(caminho: Path):
             json.dump([], arquivo, ensure_ascii=False, indent=4)
         logger.info(f"Arquivo criado: {caminho.name}")
 
-def ler_json(caminho: Path = ARQUIVO_JSON) -> list[dict[str, Any]]:
+def ler_json(caminho: Path) -> list[dict[str, Any]]:
     # Lê os dados do arquivo e converte para uma lista do Python
     verificar_banco_json(caminho)
     

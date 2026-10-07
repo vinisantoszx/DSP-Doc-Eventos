@@ -8,9 +8,12 @@ def obter_data_atual() -> str:
 
 class DocumentoEvento(BaseModel):
     id: Optional[int] = None
-    nome_arquivo: str = Field(..., description="Nome original do arquivo")
+    nome_original: str = Field(..., description="Nome original do arquivo")
+    nome_armazenado: str = Field(..., description="Nome com que o arquivo foi salvo no disco")
     extensao: str = Field(..., description="Extensão do arquivo (ex: .pdf)")
-    tamanho: float = Field(..., description="Tamanho do arquivo em bytes") 
+    tipo_mime: str = Field(..., description="Tipo MIME do arquivo (ex: application/pdf)")
+    tamanho: int = Field(..., description="Tamanho do arquivo em bytes")
+    descricao: str = Field(default="", description="Descrição do documento")
     
     # Metadados do Evento (Alinhados com os filtros do Navegador)
     evento: str = Field(..., description="Nome do evento")
@@ -22,12 +25,13 @@ class DocumentoEvento(BaseModel):
     
     # Campos automáticos e de auditoria
     data_upload: str = Field(default_factory=obter_data_atual)
-    hash_sha256: Optional[str] = Field(default=None, description="Assinatura de integridade")
+    sha256: Optional[str] = Field(default=None, description="Assinatura de integridade")
 
-    class DocumentoAtualizacao(BaseModel):
-        evento: Optional[str] = Field(default=None, description="Novo nome do evento")
-        participante_ou_responsavel: Optional[str] = Field(default=None, description="Novo responsável")
-        local: Optional[str] = Field(default=None, description="Novo local")
-        categoria: Optional[str] = Field(default=None, description="Nova categoria do documento")
-        categoria_evento: Optional[str] = Field(default=None, description="Nova categoria do evento")
-        data_evento: Optional[str] = Field(default=None, description="Nova data do evento")
+class DocumentoAtualizacao(BaseModel):
+    categoria: Optional[str] = Field(default=None, description="Nova categoria do documento")
+    descricao: Optional[str] = Field(default=None, description="Nova descrição")
+    evento: Optional[str] = Field(default=None, description="Novo nome do evento")
+    participante_ou_responsavel: Optional[str] = Field(default=None, description="Novo responsável")
+    local: Optional[str] = Field(default=None, description="Novo local")
+    categoria_evento: Optional[str] = Field(default=None, description="Nova categoria do evento")
+    data_evento: Optional[str] = Field(default=None, description="Nova data do evento")
