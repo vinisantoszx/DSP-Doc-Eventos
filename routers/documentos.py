@@ -1,5 +1,6 @@
 import logging
 import hashlib
+import mimetypes
 import shutil
 from fastapi.responses import FileResponse
 from modelos import DocumentoEvento, DocumentoAtualizacao
@@ -18,7 +19,7 @@ logger = logging.getLogger("CofreEventos")
 pasta_metadata = config["sistema"]["armazenamento"]["metadata"]
 ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
 
-PASTA_ARQUIVOS = BASE_DIR / "storage" / "arquivos"
+PASTA_ARQUIVOS = BASE_DIR / config["sistema"]["armazenamento"]["documentos"]
 PASTA_ARQUIVOS.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter(
@@ -37,12 +38,20 @@ async def upload_documento(
     local: str = Form(...),
     categoria: str = Form(...),
     categoria_evento: str = Form(...),
-    data_evento: str = Form(...)
+    data_evento: str = Form(...),
+    descricao: str = Form("")
 ):
     """
     Recebe o arquivo físico e registra os metadados no sistema.
     """
-    caminho_arquivo = PASTA_ARQUIVOS / arquivo.filename
+    if not arquivo.filename:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo foi enviado.")
+
+    nome_original = Path(arquivo.filename).name
+    dados = ler_json(ARQUIVO_JSON)
+    novo_id = max((d.get("id", 0) for d in dados), default=0) + 1
+    nome_armazenado = f"{novo_id}_{nome_original}"
+    caminho_arquivo = PASTA_ARQUIVOS / nome_armazenado
     try:
         with open(caminho_arquivo, "wb") as buffer:
             shutil.copyfileobj(arquivo.file, buffer)
@@ -60,24 +69,26 @@ async def upload_documento(
     # --- FIM DA ADIÇÃO ---
 
     tamanho_bytes = caminho_arquivo.stat().st_size
+    tipo_mime = mimetypes.guess_type(nome_original)[0] or "application/octet-stream"
 
     # Monta o modelo compatível com os filtros do Sebastian
     novo_documento = DocumentoEvento(
-        nome_arquivo=arquivo.filename,
+        nome_original=nome_original,
+        nome_armazenado=nome_armazenado,
         extensao=caminho_arquivo.suffix,
+        tipo_mime=tipo_mime,
         tamanho=tamanho_bytes,
-        hash_sha256=hash_calculado,
+        sha256=hash_calculado,
         evento=evento,
         participante_ou_responsavel=participante,
         local=local,
         categoria=categoria,
         categoria_evento=categoria_evento,
-        data_evento=data_evento
+        data_evento=data_evento,
+        descricao=descricao
     )
 
     try:
-        dados = ler_json(ARQUIVO_JSON)
-        novo_id = 1 if len(dados) == 0 else dados[-1]["id"] + 1
         novo_documento.id = novo_id
         
         dados.append(novo_documento.model_dump())
@@ -108,7 +119,7 @@ def baixar_documento(id_documento: int):
         )
 
     # 2. Monta o caminho de onde o arquivo físico deveria estar
-    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_arquivo"]
+    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_armazenado"]
     
     # 3. Verifica se o arquivo físico realmente existe na pasta
     if not caminho_arquivo.exists():
@@ -118,12 +129,12 @@ def baixar_documento(id_documento: int):
             detail="O arquivo físico não foi localizado no servidor."
         )
     
-    logger.info(f"DOWNLOAD concluído: {documento['nome_arquivo']} (ID: {id_documento})")
+    logger.info(f"DOWNLOAD concluído: {documento['nome_original']} (ID: {id_documento})")
     
     # 4. Devolve o arquivo binário intacto para o usuário
     return FileResponse(
         path=caminho_arquivo, 
-        filename=documento["nome_arquivo"],
+        filename=documento["nome_original"],
         media_type="application/octet-stream" # Garante que o navegador vai forçar o download
     )
 
@@ -142,7 +153,7 @@ def atualizar_documento(id_documento: int, dados_atualizacao: DocumentoAtualizac
             documento_encontrado = True
             
             # Converte o molde recebido para um dicionário, ignorando valores vazios (None)
-            campos_para_atualizar = dados_atualizacao.model_dump(exclude_unset=True)
+            campos_para_atualizar = dados_atualizacao.model_dump(exclude_none=True)
             
             # Atualiza os dados no documento original
             for chave, valor in campos_para_atualizar.items():
@@ -209,7 +220,7 @@ def listar_documentos(
             match = False
         if categoria_evento and not comparar_texto(doc.get("categoria_evento"), categoria_evento):
             match = False
-        if data_evento and not str(doc.get("data_evento", "")).startswith(data_evento):
+        if data_evento and data_evento not in str(doc.get("data_evento", "")):
             match = False
 
         if match:
