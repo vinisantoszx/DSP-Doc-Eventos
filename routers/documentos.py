@@ -2,7 +2,11 @@ import logging
 import hashlib
 import mimetypes
 import shutil
-from fastapi.responses import FileResponse
+import csv
+import io
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from modelos import DocumentoEvento, DocumentoAtualizacao
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
@@ -22,6 +26,9 @@ ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
 PASTA_ARQUIVOS = BASE_DIR / config["sistema"]["armazenamento"]["documentos"]
 PASTA_ARQUIVOS.mkdir(parents=True, exist_ok=True)
 
+TAMANHO_MAXIMO_BYTES = config["sistema"]["upload"]["tamanho_maximo_mb"] * 1024 * 1024
+ALGORITMO_HASH = config["sistema"]["seguranca"]["algoritmo_hash"]
+
 router = APIRouter(
     prefix="/documentos",
     tags=["documentos"],
@@ -30,7 +37,7 @@ router = APIRouter(
 # ==============================================================================
 # ROTA DO ARQUIVISTA - Upload de Documentos
 # ==============================================================================
-@router.post("/upload/", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def upload_documento(
     arquivo: UploadFile = File(...),
     evento: str = Form(...),
@@ -46,6 +53,12 @@ async def upload_documento(
     """
     if not arquivo.filename:
         raise HTTPException(status_code=400, detail="Nenhum arquivo foi enviado.")
+        
+    if arquivo.size and arquivo.size > TAMANHO_MAXIMO_BYTES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Arquivo excede o limite de {config['sistema']['upload']['tamanho_maximo_mb']}MB."
+        )
 
     nome_original = Path(arquivo.filename).name
     dados = ler_json(ARQUIVO_JSON)
@@ -60,12 +73,12 @@ async def upload_documento(
         raise HTTPException(status_code=500, detail="Falha ao salvar o arquivo no servidor.")
 
     # --- INÍCIO DA ADIÇÃO DO HASH ---
-    # Calcula o Hash SHA-256 lendo o arquivo em pequenos blocos
-    sha256_hash = hashlib.sha256()
+    # Calcula o Hash lendo o arquivo em pequenos blocos
+    hash_obj = hashlib.new(ALGORITMO_HASH)
     with open(caminho_arquivo, "rb") as arquivo_binario:
         for chunk in iter(lambda: arquivo_binario.read(4096), b""):
-            sha256_hash.update(chunk)
-    hash_calculado = sha256_hash.hexdigest()
+            hash_obj.update(chunk)
+    hash_calculado = hash_obj.hexdigest()
     # --- FIM DA ADIÇÃO ---
 
     tamanho_bytes = caminho_arquivo.stat().st_size
@@ -73,24 +86,23 @@ async def upload_documento(
 
     # Monta o modelo compatível com os filtros do Sebastian
     novo_documento = DocumentoEvento(
+        id=novo_id,
         nome_original=nome_original,
         nome_armazenado=nome_armazenado,
         extensao=caminho_arquivo.suffix,
         tipo_mime=tipo_mime,
         tamanho=tamanho_bytes,
+        categoria=categoria,
+        descricao=descricao,
         sha256=hash_calculado,
         evento=evento,
         participante_ou_responsavel=participante,
         local=local,
-        categoria=categoria,
         categoria_evento=categoria_evento,
         data_evento=data_evento,
-        descricao=descricao
     )
 
     try:
-        novo_documento.id = novo_id
-        
         dados.append(novo_documento.model_dump())
         salvar_json(ARQUIVO_JSON, dados)
         
@@ -135,7 +147,7 @@ def baixar_documento(id_documento: int):
     return FileResponse(
         path=caminho_arquivo, 
         filename=documento["nome_original"],
-        media_type="application/octet-stream" # Garante que o navegador vai forçar o download
+        media_type=documento.get("tipo_mime", "application/octet-stream")
     )
 
 @router.put("/{id_documento}", summary="Atualização de metadados")
@@ -295,3 +307,124 @@ def obter_documento(id_documento: int):
 
     logger.info(f"CONSULTA_ID id={id_documento}")
     return documento
+
+# ==============================================================================
+# ROTAS DO AUDITOR (PARTE DO VINÍCIUS) - Segurança, Backups e Exportações
+# ==============================================================================
+
+# F9 e F10: Integridade
+@router.get("/{id_documento}/integridade", summary="Verificar integridade do documento")
+def verificar_integridade(id_documento: int):
+    """
+    Recalcula o SHA-256 do arquivo físico e compara com o JSON.
+    """
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento não encontrado.")
+    
+    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_armazenado"]
+    if not caminho_arquivo.exists():
+        return {"status": "corrompido", "motivo": "Arquivo físico ausente no diretório."}
+        
+    hash_obj = hashlib.new(ALGORITMO_HASH)
+    with open(caminho_arquivo, "rb") as arquivo_binario:
+        for chunk in iter(lambda: arquivo_binario.read(4096), b""):
+            hash_obj.update(chunk)
+    hash_calculado = hash_obj.hexdigest()
+    
+    hash_esperado = documento.get("sha256")
+    
+    if hash_calculado == hash_esperado:
+        return {"status": "integro", "mensagem": "O arquivo está intacto e não foi alterado."}
+    else:
+        logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_documento} corrompido.")
+        return {"status": "corrompido", "motivo": "O hash físico não confere com o registrado no banco."}
+
+# F14 e F15: Criar e Listar Backups
+@router.post("/auditoria/backups", summary="Gerar backup do sistema")
+def gerar_backup():
+    """
+    Empacota toda a pasta storage (arquivos, jsons e logs) num arquivo ZIP.
+    """
+    PASTA_BACKUPS = BASE_DIR / config["sistema"]["armazenamento"]["backups"]
+    PASTA_BACKUPS.mkdir(parents=True, exist_ok=True)
+    
+    data_atual = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome_backup = f"backup_cofre_{data_atual}"
+    caminho_backup = PASTA_BACKUPS / nome_backup
+    
+    pasta_storage = BASE_DIR / "storage"
+    shutil.make_archive(str(caminho_backup), 'zip', str(pasta_storage))
+    
+    logger.info(f"BACKUP_CRIADO: {nome_backup}.zip")
+    return {"mensagem": "Backup gerado com sucesso.", "arquivo": f"{nome_backup}.zip"}
+
+@router.get("/auditoria/backups", summary="Listar backups disponíveis")
+def listar_backups():
+    """
+    Lista todos os arquivos .zip disponíveis na pasta de backups.
+    """
+    PASTA_BACKUPS = BASE_DIR / config["sistema"]["armazenamento"]["backups"]
+    PASTA_BACKUPS.mkdir(parents=True, exist_ok=True)
+    
+    backups = []
+    for arquivo in PASTA_BACKUPS.glob("*.zip"):
+        backups.append({
+            "nome": arquivo.name,
+            "tamanho_bytes": arquivo.stat().st_size,
+            "data_criacao": datetime.fromtimestamp(arquivo.stat().st_ctime).strftime("%d/%m/%Y %H:%M:%S")
+        })
+        
+    return {"total": len(backups), "backups": backups}
+
+# F13: Exportação CSV
+@router.get("/auditoria/exportar/csv", summary="Exportar catálogo para CSV")
+def exportar_csv():
+    """
+    Gera um arquivo .csv contendo todo o catálogo do JSON atual.
+    """
+    documentos = ler_json(ARQUIVO_JSON)
+    if not documentos:
+        raise HTTPException(status_code=404, detail="Nenhum documento para exportar.")
+        
+    cabecalhos = list(documentos[0].keys())
+    
+    saida = io.StringIO()
+    escritor = csv.DictWriter(saida, fieldnames=cabecalhos, delimiter=";")
+    escritor.writeheader()
+    for doc in documentos:
+        escritor.writerow(doc)
+        
+    saida.seek(0)
+    
+    resposta = StreamingResponse(iter([saida.getvalue()]), media_type="text/csv")
+    resposta.headers["Content-Disposition"] = "attachment; filename=catalogo_documentos.csv"
+    return resposta
+
+# F16: Exportação XML por Evento (Tema 11)
+@router.get("/auditoria/exportar/xml/{nome_evento}", summary="Exportar documentos do evento em XML")
+def exportar_xml_evento(nome_evento: str):
+    """
+    Endpoint principal do domínio: Gera um arquivo XML de todos os documentos de um evento específico.
+    """
+    documentos = ler_json(ARQUIVO_JSON)
+    
+    # Filtra apenas documentos que pertencem ao evento procurado (ignorando cases)
+    docs_evento = [doc for doc in documentos if str(doc.get("evento", "")).strip().casefold() == nome_evento.strip().casefold()]
+    
+    if not docs_evento:
+        raise HTTPException(status_code=404, detail=f"Nenhum documento encontrado para o evento '{nome_evento}'.")
+        
+    root = ET.Element("Evento", nome=nome_evento)
+    docs_element = ET.SubElement(root, "Documentos", total=str(len(docs_evento)))
+    
+    for doc in docs_evento:
+        doc_xml = ET.SubElement(docs_element, "Documento", id=str(doc.get("id")))
+        for chave, valor in doc.items():
+            if chave != "id":
+                campo = ET.SubElement(doc_xml, chave.capitalize().replace(" ", "_"))
+                campo.text = str(valor)
+                
+    xml_str = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
+    
+    return Response(content=xml_str, media_type="application/xml")

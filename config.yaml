@@ -6,7 +6,7 @@ sistema:
   upload:
     tamanho_maximo_mb: 50
   seguranca:
-    algoritmo_hash: "SHA-256"
+    algoritmo_hash: "sha256"
   backup:
     formato: "zip"
 
