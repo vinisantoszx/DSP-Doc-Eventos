@@ -185,6 +185,38 @@ def atualizar_documento(id_documento: int, dados_atualizacao: DocumentoAtualizac
     
     return {"mensagem": "Metadados atualizados com sucesso", "id_documento": id_documento}
 
+@router.delete("/{id_documento}", summary="Exclusão de Documento")
+def excluir_documento(id_documento: int):
+    """
+    Remove definitivamente o registro do banco JSON e o arquivo físico correspondente.
+    """
+    dados = ler_json(ARQUIVO_JSON)
+    documento_para_excluir = None
+    
+    for doc in dados:
+        if doc.get("id") == id_documento:
+            documento_para_excluir = doc
+            break
+            
+    if not documento_para_excluir:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado."
+        )
+        
+    # Remove o arquivo físico
+    caminho_arquivo = PASTA_ARQUIVOS / documento_para_excluir["nome_armazenado"]
+    if caminho_arquivo.exists():
+        caminho_arquivo.unlink()
+        logger.info(f"EXCLUSÃO: Arquivo físico {caminho_arquivo.name} apagado.")
+        
+    # Remove do JSON e salva
+    dados.remove(documento_para_excluir)
+    salvar_json(ARQUIVO_JSON, dados)
+    
+    logger.info(f"EXCLUSÃO concluída: Documento {id_documento} apagado do sistema.")
+    return {"mensagem": "Documento e arquivo físico excluídos com sucesso", "id_documento": id_documento}
+
 # ==============================================================================
 # ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
 # ==============================================================================
