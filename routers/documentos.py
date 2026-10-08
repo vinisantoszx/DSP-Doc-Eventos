@@ -19,7 +19,7 @@ from utils import ler_json, buscar_por_id, salvar_json
 
 logger = logging.getLogger("CofreEventos")
 
-# Configurações de pastas (misturando a base do Sebastian com a minha necessidade de arquivos físicos)
+# Configurações de pastas (misturando a base do Sebastian com a minha de arquivos físicos)
 pasta_metadata = config["sistema"]["armazenamento"]["metadata"]
 ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
 
@@ -35,7 +35,7 @@ router = APIRouter(
 )
 
 # ==============================================================================
-# ROTA DO ARQUIVISTA - Upload de Documentos
+# ROTA CHRYSTIAN - Upload de Documentos
 # ==============================================================================
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def upload_documento(
