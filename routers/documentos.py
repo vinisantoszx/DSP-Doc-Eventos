@@ -488,7 +488,10 @@ def exportar_xml_evento(nome_evento: str):
                 
     xml_str = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
     
-    return Response(content=xml_str, media_type="application/xml")
+    resposta = Response(content=xml_str, media_type="application/xml")
+    nome_arquivo = f"evento_{nome_evento.replace(' ', '_')}.xml"
+    resposta.headers["Content-Disposition"] = f"attachment; filename={nome_arquivo}"
+    return resposta
 
 @router.get("/{id_documento}", response_model=DocumentoEvento)
 def obter_documento(id_documento: int):
