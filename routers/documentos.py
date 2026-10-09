@@ -2,11 +2,7 @@ import logging
 import hashlib
 import mimetypes
 import shutil
-import csv
-import io
-import xml.etree.ElementTree as ET
-from datetime import datetime
-from fastapi.responses import FileResponse, StreamingResponse, Response
+from fastapi.responses import FileResponse
 from modelos import DocumentoEvento, DocumentoAtualizacao
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
@@ -14,7 +10,6 @@ from typing import Optional
 
 # Importações do Sebastian integradas com as minhas
 from config import config, BASE_DIR
-from modelos import DocumentoEvento
 from utils import ler_json, buscar_por_id, salvar_json
 
 logger = logging.getLogger("CofreEventos")
