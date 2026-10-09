@@ -4,3 +4,7 @@
 # Ignorar cache de compilação do Python
 __pycache__/
 *.pyc
+
+# Ignorar banco de dados local e arquivos fisicos de upload
+storage/
+*.json

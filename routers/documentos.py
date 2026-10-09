@@ -185,6 +185,38 @@ def atualizar_documento(id_documento: int, dados_atualizacao: DocumentoAtualizac
     
     return {"mensagem": "Metadados atualizados com sucesso", "id_documento": id_documento}
 
+@router.delete("/{id_documento}", summary="Exclusão de Documento")
+def excluir_documento(id_documento: int):
+    """
+    Remove definitivamente o registro do banco JSON e o arquivo físico correspondente.
+    """
+    dados = ler_json(ARQUIVO_JSON)
+    documento_para_excluir = None
+    
+    for doc in dados:
+        if doc.get("id") == id_documento:
+            documento_para_excluir = doc
+            break
+            
+    if not documento_para_excluir:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado."
+        )
+        
+    # Remove o arquivo físico
+    caminho_arquivo = PASTA_ARQUIVOS / documento_para_excluir["nome_armazenado"]
+    if caminho_arquivo.exists():
+        caminho_arquivo.unlink()
+        logger.info(f"EXCLUSÃO: Arquivo físico {caminho_arquivo.name} apagado.")
+        
+    # Remove do JSON e salva
+    dados.remove(documento_para_excluir)
+    salvar_json(ARQUIVO_JSON, dados)
+    
+    logger.info(f"EXCLUSÃO concluída: Documento {id_documento} apagado do sistema.")
+    return {"mensagem": "Documento e arquivo físico excluídos com sucesso", "id_documento": id_documento}
+
 # ==============================================================================
 # ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
 # ==============================================================================
@@ -312,11 +344,11 @@ def obter_documento(id_documento: int):
 # ROTAS DO AUDITOR (PARTE DO VINÍCIUS) - Segurança, Backups e Exportações
 # ==============================================================================
 
-# F9 e F10: Integridade
+# F9: Integridade de um Documento
 @router.get("/{id_documento}/integridade", summary="Verificar integridade do documento")
 def verificar_integridade(id_documento: int):
     """
-    Recalcula o SHA-256 do arquivo físico e compara com o JSON.
+    Recalcula o SHA do arquivo físico e compara com o JSON.
     """
     documento = buscar_por_id(ARQUIVO_JSON, id_documento)
     if not documento:
@@ -339,6 +371,49 @@ def verificar_integridade(id_documento: int):
     else:
         logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_documento} corrompido.")
         return {"status": "corrompido", "motivo": "O hash físico não confere com o registrado no banco."}
+
+# F10: Relatório de Integridade Geral
+@router.get("/auditoria/integridade", summary="Relatório Geral de Integridade")
+def relatorio_integridade_geral():
+    """
+    Verifica a integridade de todos os documentos registrados no banco comparando com os arquivos físicos.
+    Retorna um relatório geral.
+    """
+    documentos = ler_json(ARQUIVO_JSON)
+    if not documentos:
+        return {"total_verificados": 0, "total_integros": 0, "total_corrompidos": 0, "corrompidos_detalhes": []}
+        
+    integros = []
+    corrompidos = []
+    
+    for doc in documentos:
+        id_doc = doc.get("id")
+        nome = doc.get("nome_original")
+        
+        caminho_arquivo = PASTA_ARQUIVOS / doc.get("nome_armazenado", "")
+        if not caminho_arquivo.exists():
+            corrompidos.append({"id": id_doc, "nome": nome, "motivo": "Arquivo físico ausente"})
+            logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_doc} ({nome}) - Ausente.")
+            continue
+            
+        hash_obj = hashlib.new(ALGORITMO_HASH)
+        with open(caminho_arquivo, "rb") as arquivo_binario:
+            for chunk in iter(lambda: arquivo_binario.read(4096), b""):
+                hash_obj.update(chunk)
+        hash_calculado = hash_obj.hexdigest()
+        
+        if hash_calculado == doc.get("sha256"):
+            integros.append({"id": id_doc, "nome": nome})
+        else:
+            corrompidos.append({"id": id_doc, "nome": nome, "motivo": "Hash incompatível (Corrompido)"})
+            logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_doc} ({nome}) - Hash incorreto.")
+            
+    return {
+        "total_verificados": len(documentos),
+        "total_integros": len(integros),
+        "total_corrompidos": len(corrompidos),
+        "corrompidos_detalhes": corrompidos
+    }
 
 # F14 e F15: Criar e Listar Backups
 @router.post("/auditoria/backups", summary="Gerar backup do sistema")
