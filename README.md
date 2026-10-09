@@ -1,6 +1,6 @@
 # Cofre Digital - Documentação de Eventos
 
-Projeto desenvolvido para a disciplina de Persistência de Dados. O **Cofre Digital** é uma API RESTFul construída com **FastAPI** para o gerenciamento, armazenamento e auditoria de documentos físicos atrelados a um domínio de **Organização de Eventos**.
+Projeto desenvolvido para a disciplina de Desenvolvimento de Software para Persistência. O **Cofre Digital** é uma API RESTFul construída com **FastAPI** para o gerenciamento, armazenamento e auditoria de documentos físicos atrelados a um domínio de **Organização de Eventos**.
 
 ## Funcionalidades Principais
 
