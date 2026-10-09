@@ -1,4 +1,5 @@
 from routers.documentos import router as documentos_router
+from routers.auditoria import router as auditoria_router
 import logging
 import logging.config
 from contextlib import asynccontextmanager
@@ -35,6 +36,7 @@ app = FastAPI(
 )
 
 app.include_router(documentos_router)
+app.include_router(auditoria_router)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
