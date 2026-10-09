@@ -499,7 +499,6 @@ def verificar_integridade(id_documento: int):
 def obter_documento(id_documento: int):
     """
     Busca um documento específico através do seu ID.
-    (Colocado no final para não conflitar com rotas de texto longo como /auditoria)
     """
     documento = buscar_por_id(ARQUIVO_JSON, id_documento)
 
