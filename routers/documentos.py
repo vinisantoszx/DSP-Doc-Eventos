@@ -218,7 +218,7 @@ def excluir_documento(id_documento: int):
     return {"mensagem": "Documento e arquivo físico excluídos com sucesso", "id_documento": id_documento}
 
 # ==============================================================================
-# ROTAS DO NAVEGADOR - Filtros e Buscas
+# ROTA SEBASTIAN - Filtros e Buscas
 # ==============================================================================
 
 def comparar_texto(valor_doc, filtro: str) -> bool:
@@ -327,7 +327,7 @@ def obter_estatisticas():
 
 
 # ==============================================================================
-# ROTAS DO AUDITOR - Segurança, Backups e Exportações
+# ROTAS VINÍCIUS - Segurança, Backups e Exportações
 # ==============================================================================
 
 
