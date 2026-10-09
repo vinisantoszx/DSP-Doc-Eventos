@@ -19,7 +19,7 @@ from utils import ler_json, buscar_por_id, salvar_json
 
 logger = logging.getLogger("CofreEventos")
 
-# Configurações de pastas (misturando a base do Sebastian com a minha necessidade de arquivos físicos)
+# Configurações de pastas (misturando a base do Sebastian com a minha de arquivos físicos)
 pasta_metadata = config["sistema"]["armazenamento"]["metadata"]
 ARQUIVO_JSON = BASE_DIR / pasta_metadata / "documentos.json"
 
@@ -330,7 +330,6 @@ def obter_estatisticas():
 def obter_documento(id_documento: int):
     """
     Busca um documento específico através do seu ID.
-    (Colocado no final para não conflitar com rotas de texto longo como /auditoria)
     """
     documento = buscar_por_id(ARQUIVO_JSON, id_documento)
 
