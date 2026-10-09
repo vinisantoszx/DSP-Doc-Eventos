@@ -218,7 +218,7 @@ def excluir_documento(id_documento: int):
     return {"mensagem": "Documento e arquivo físico excluídos com sucesso", "id_documento": id_documento}
 
 # ==============================================================================
-# ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
+# ROTAS DO NAVEGADOR - Filtros e Buscas
 # ==============================================================================
 
 def comparar_texto(valor_doc, filtro: str) -> bool:
@@ -324,24 +324,10 @@ def obter_estatisticas():
         "por_categoria_evento": por_categoria_evento
     }
 
-@router.get("/{id_documento}", response_model=DocumentoEvento)
-def obter_documento(id_documento: int):
-    """
-    Busca um documento específico através do seu ID.
-    """
-    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
 
-    if not documento:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Documento {id_documento} não encontrado",
-        )
-
-    logger.info(f"CONSULTA_ID id={id_documento}")
-    return documento
 
 # ==============================================================================
-# ROTAS DO AUDITOR (PARTE DO VINÍCIUS) - Segurança, Backups e Exportações
+# ROTAS DO AUDITOR - Segurança, Backups e Exportações
 # ==============================================================================
 
 # F9: Integridade de um Documento
@@ -503,3 +489,20 @@ def exportar_xml_evento(nome_evento: str):
     xml_str = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
     
     return Response(content=xml_str, media_type="application/xml")
+
+@router.get("/{id_documento}", response_model=DocumentoEvento)
+def obter_documento(id_documento: int):
+    """
+    Busca um documento específico através do seu ID.
+    (Colocado no final para não conflitar com rotas de texto longo como /auditoria)
+    """
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+
+    if not documento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado",
+        )
+
+    logger.info(f"CONSULTA_ID id={id_documento}")
+    return documento
