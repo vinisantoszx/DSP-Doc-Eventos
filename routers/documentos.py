@@ -218,7 +218,7 @@ def excluir_documento(id_documento: int):
     return {"mensagem": "Documento e arquivo físico excluídos com sucesso", "id_documento": id_documento}
 
 # ==============================================================================
-# ROTAS DO NAVEGADOR (PARTE DO SEBASTIAN) - Filtros e Buscas
+# ROTA SEBASTIAN - Filtros e Buscas
 # ==============================================================================
 
 def comparar_texto(valor_doc, filtro: str) -> bool:
@@ -324,53 +324,55 @@ def obter_estatisticas():
         "por_categoria_evento": por_categoria_evento
     }
 
-@router.get("/{id_documento}", response_model=DocumentoEvento)
-def obter_documento(id_documento: int):
-    """
-    Busca um documento específico através do seu ID.
-    """
-    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
 
-    if not documento:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Documento {id_documento} não encontrado",
-        )
-
-    logger.info(f"CONSULTA_ID id={id_documento}")
-    return documento
 
 # ==============================================================================
-# ROTAS DO AUDITOR (PARTE DO VINÍCIUS) - Segurança, Backups e Exportações
+# ROTAS VINÍCIUS - Segurança, Backups e Exportações
 # ==============================================================================
 
-# F9: Integridade de um Documento
-@router.get("/{id_documento}/integridade", summary="Verificar integridade do documento")
-def verificar_integridade(id_documento: int):
+
+# F10: Relatório de Integridade Geral
+@router.get("/auditoria/integridade", summary="Relatório Geral de Integridade")
+def relatorio_integridade_geral():
     """
-    Recalcula o SHA do arquivo físico e compara com o JSON.
+    Verifica a integridade de todos os documentos registrados no banco comparando com os arquivos físicos.
+    Retorna um relatório geral.
     """
-    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
-    if not documento:
-        raise HTTPException(status_code=404, detail="Documento não encontrado.")
-    
-    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_armazenado"]
-    if not caminho_arquivo.exists():
-        return {"status": "corrompido", "motivo": "Arquivo físico ausente no diretório."}
+    documentos = ler_json(ARQUIVO_JSON)
+    if not documentos:
+        return {"total_verificados": 0, "total_integros": 0, "total_corrompidos": 0, "corrompidos_detalhes": []}
         
-    hash_obj = hashlib.new(ALGORITMO_HASH)
-    with open(caminho_arquivo, "rb") as arquivo_binario:
-        for chunk in iter(lambda: arquivo_binario.read(4096), b""):
-            hash_obj.update(chunk)
-    hash_calculado = hash_obj.hexdigest()
+    integros = []
+    corrompidos = []
     
-    hash_esperado = documento.get("sha256")
-    
-    if hash_calculado == hash_esperado:
-        return {"status": "integro", "mensagem": "O arquivo está intacto e não foi alterado."}
-    else:
-        logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_documento} corrompido.")
-        return {"status": "corrompido", "motivo": "O hash físico não confere com o registrado no banco."}
+    for doc in documentos:
+        id_doc = doc.get("id")
+        nome = doc.get("nome_original")
+        
+        caminho_arquivo = PASTA_ARQUIVOS / doc.get("nome_armazenado", "")
+        if not caminho_arquivo.exists():
+            corrompidos.append({"id": id_doc, "nome": nome, "motivo": "Arquivo físico ausente"})
+            logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_doc} ({nome}) - Ausente.")
+            continue
+            
+        hash_obj = hashlib.new(ALGORITMO_HASH)
+        with open(caminho_arquivo, "rb") as arquivo_binario:
+            for chunk in iter(lambda: arquivo_binario.read(4096), b""):
+                hash_obj.update(chunk)
+        hash_calculado = hash_obj.hexdigest()
+        
+        if hash_calculado == doc.get("sha256"):
+            integros.append({"id": id_doc, "nome": nome})
+        else:
+            corrompidos.append({"id": id_doc, "nome": nome, "motivo": "Hash incompatível (Corrompido)"})
+            logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_doc} ({nome}) - Hash incorreto.")
+            
+    return {
+        "total_verificados": len(documentos),
+        "total_integros": len(integros),
+        "total_corrompidos": len(corrompidos),
+        "corrompidos_detalhes": corrompidos
+    }
 
 # F10: Relatório de Integridade Geral
 @router.get("/auditoria/integridade", summary="Relatório Geral de Integridade")
@@ -502,4 +504,53 @@ def exportar_xml_evento(nome_evento: str):
                 
     xml_str = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
     
-    return Response(content=xml_str, media_type="application/xml")
+    resposta = Response(content=xml_str, media_type="application/xml")
+    nome_arquivo = f"evento_{nome_evento.replace(' ', '_')}.xml"
+    resposta.headers["Content-Disposition"] = f"attachment; filename={nome_arquivo}"
+    return resposta
+
+# F9: Integridade de um Documento
+@router.get("/{id_documento}/integridade", summary="Verificar integridade do documento")
+def verificar_integridade(id_documento: int):
+    """
+    Recalcula o SHA do arquivo físico e compara com o JSON.
+    (Colocado no final para evitar conflito com /auditoria/integridade)
+    """
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento não encontrado.")
+    
+    caminho_arquivo = PASTA_ARQUIVOS / documento["nome_armazenado"]
+    if not caminho_arquivo.exists():
+        return {"status": "corrompido", "motivo": "Arquivo físico ausente no diretório."}
+        
+    hash_obj = hashlib.new(ALGORITMO_HASH)
+    with open(caminho_arquivo, "rb") as arquivo_binario:
+        for chunk in iter(lambda: arquivo_binario.read(4096), b""):
+            hash_obj.update(chunk)
+    hash_calculado = hash_obj.hexdigest()
+    
+    hash_esperado = documento.get("sha256")
+    
+    if hash_calculado == hash_esperado:
+        return {"status": "integro", "mensagem": "O arquivo está intacto e não foi alterado."}
+    else:
+        logger.warning(f"INTEGRIDADE_FALHOU: Doc {id_documento} corrompido.")
+        return {"status": "corrompido", "motivo": "O hash físico não confere com o registrado no banco."}
+
+@router.get("/{id_documento}", response_model=DocumentoEvento)
+def obter_documento(id_documento: int):
+    """
+    Busca um documento específico através do seu ID.
+    (Colocado no final para não conflitar com rotas de texto longo como /auditoria)
+    """
+    documento = buscar_por_id(ARQUIVO_JSON, id_documento)
+
+    if not documento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento {id_documento} não encontrado",
+        )
+
+    logger.info(f"CONSULTA_ID id={id_documento}")
+    return documento
