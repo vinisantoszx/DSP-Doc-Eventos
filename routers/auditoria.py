@@ -20,7 +20,6 @@ from utils import ler_json, buscar_por_id
 
 logger = logging.getLogger("CofreEventos")
 
-# Router sem prefixo: as rotas seguem os caminhos pedidos no enunciado
 router = APIRouter(tags=["auditoria"])
 
 ARMAZENAMENTO = config["sistema"]["armazenamento"]
@@ -197,7 +196,7 @@ def exportar_csv():
     return resposta
 
 
-# F16: Exportação XML por Evento (Tema 11)
+# F16: Exportação XML por Evento
 @router.get("/documentos/auditoria/exportar/xml/{nome_evento}", summary="Exportar documentos do evento em XML")
 def exportar_xml_evento(nome_evento: str):
     """
@@ -205,7 +204,7 @@ def exportar_xml_evento(nome_evento: str):
     """
     documentos = ler_json(ARQUIVO_JSON)
 
-    # Filtra apenas documentos que pertencem ao evento procurado (ignorando cases)
+    # Filtra apenas documentos que pertencem ao evento procurado
     docs_evento = [doc for doc in documentos if str(doc.get("evento", "")).strip().casefold() == nome_evento.strip().casefold()]
 
     if not docs_evento:
@@ -224,7 +223,7 @@ def exportar_xml_evento(nome_evento: str):
     xml_str = ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
 
     resposta = Response(content=xml_str, media_type="application/xml")
-    # Nome seguro para o cabeçalho HTTP (sem barras e com suporte a UTF-8)
+    # Nome seguro para o cabeçalho HTTP
     nome_seguro = re.sub(r'[\\/:*?"<>|\r\n\s]+', "_", nome_evento.strip()) or "evento"
     resposta.headers["Content-Disposition"] = (
         f"attachment; filename=\"evento.xml\"; filename*=UTF-8''evento_{quote(nome_seguro)}.xml"
